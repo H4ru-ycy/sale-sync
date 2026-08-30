@@ -126,6 +126,31 @@
     .live .pulse{animation:none}
     *{transition:none !important}
   }
+
+  /* ===== 横画面（タブレット等）最適化：縦積みのまま高さに収める ===== */
+  @media (orientation: landscape){
+    :root{ --pad: clamp(12px, 2.6vh, 26px); }
+    .total .yen{ font-size:min(clamp(30px,7vw,64px), 13vh); }
+    .total .figure{ font-size:min(clamp(64px,20vw,190px), 30vh); }
+    .total-label{ font-size:clamp(12px,2.2vh,17px); }
+    #live .total-wrap{ gap:2px; }
+    .count-pill{ margin-top:2px; }
+    .items{ max-height:34vh; }
+    .row{ padding:clamp(6px,1.3vh,12px) 2px; }
+    .center{ gap:clamp(10px,2vh,20px); }
+    .headline{ font-size:clamp(18px,3.4vh,30px); }
+    .qcard{ padding:clamp(10px,1.6vh,18px); }
+    .qcard img, .qcard canvas{ width:min(clamp(160px,40vw,240px), 44vh); }
+    .pin .d{ font-size:clamp(20px,4.6vh,40px); padding:clamp(6px,1vh,12px) clamp(7px,1.4vw,14px); }
+    .hint{ font-size:clamp(12px,2.2vh,16px); }
+    .subhint{ font-size:clamp(10px,1.7vh,13px); }
+  }
+  @media (orientation: landscape) and (max-height: 480px){
+    .total .figure{ font-size:min(clamp(56px,16vw,150px), 34vh); }
+    .items{ max-height:40vh; }
+    .headline{ font-size:clamp(16px,4vh,26px); }
+    .qcard img, .qcard canvas{ width:min(clamp(140px,34vw,220px), 46vh); }
+  }
 </style>
 </head>
 <body>
@@ -228,158 +253,4 @@ async function startPairing(){
     renderQR(r.pin); renderPin(r.pin);
     startPolling();
   }catch{
-    showNotice("error", "サーバーに接続できませんでした。ネットワークを確認してください。");
-  }
-}
-
-function startPolling(){
-  stopPolling();
-  const tick = async ()=>{
-    try{
-      const r = await api(`/state/pull?sessionId=${encodeURIComponent(session.sessionId)}&token=${encodeURIComponent(session.outToken)}`);
-      if(r.status === "pending"){ }
-      else if(r.status === "active"){
-        session.expiresAt = r.expiresAt;
-        saveSession(session);
-        if(!screens.live.classList.contains("on")) enterLive();
-        applyState(r.state);
-      }
-      else if(r.status === "expired"){ stopPolling(); clearSession(); showNotice("expired"); return; }
-      else if(r.status === "invalid"){
-        if(!screens.live.classList.contains("on")){ stopPolling(); startPairing(); return; }
-        stopPolling(); clearSession(); showNotice("expired"); return;
-      }
-    }catch{}
-    pollTimer = setTimeout(tick, CONFIG.POLL_MS);
-  };
-  tick();
-}
-function stopPolling(){ if(pollTimer){ clearTimeout(pollTimer); pollTimer=null; } }
-
-let displayedTotal = 0, remainTimer, lastItemsKey = "";
-
-function enterLive(){ show("live"); startRemain(); }
-
-function startRemain(){
-  clearInterval(remainTimer);
-  const upd = ()=>{
-    if(!session || !session.expiresAt) return;
-    let ms = session.expiresAt - Date.now();
-    if(ms <= 0){ clearInterval(remainTimer); stopPolling(); clearSession(); showNotice("expired"); return; }
-    const s = Math.floor(ms/1000);
-    const h = Math.floor(s/3600), m = Math.floor(s%3600/60), sec = s%60;
-    byId("remain").textContent = `${h}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
-  };
-  upd(); remainTimer = setInterval(upd, 1000);
-}
-
-function applyState(state){
-  if(!state){ return; }
-  if(state.title) byId("title").textContent = state.title;
-  const items = Array.isArray(state.items) ? state.items : [];
-  const total = Number.isFinite(state.total) ? state.total
-    : items.reduce((a,it)=> a + (Number(it.price)||0)*(Number(it.qty)||0), 0);
-  const count = items.reduce((a,it)=> a + (Number(it.qty)||0), 0);
-
-  tweenTo(byId("figure"), displayedTotal, total, v=>fmt(Math.round(v)));
-  displayedTotal = total;
-  byId("count").textContent = fmt(count);
-
-  const key = items.map(it=>`${it.name}|${it.qty}|${it.price}|${it.kind||""}`).join(";");
-  renderItems(items, key !== lastItemsKey);
-  lastItemsKey = key;
-
-  const ago = state.ts ? Math.max(0, Math.round((Date.now()-state.ts)/1000)) : 0;
-  byId("updated").textContent = state.ts ? `更新 ${ago===0?"たった今":ago+"秒前"}` : "更新を待っています…";
-}
-
-function renderItems(items, flashLast){
-  const box = byId("items"); box.innerHTML = "";
-  const list = items.filter(it => (Number(it.qty)||0) > 0);
-  list.slice().reverse().forEach((it,idx)=>{
-    const row = document.createElement("div");
-    row.className = "row" + (flashLast && idx===0 ? " flash" : "");
-    const price = Number(it.price)||0, qty = Number(it.qty)||0;
-    const kind = String(it.kind||"");
-    const badge = kind==="新刊" ? '<span class="kbadge k-new">新刊</span>'
-                : kind==="既刊" ? '<span class="kbadge k-old">既刊</span>' : "";
-    row.innerHTML =
-      `<span class="name"><span class="nm">${esc(it.name||"（無題）")}</span>${badge}</span>`+
-      `<span class="qty"><span class="num">${qty}</span>点 × ¥<span class="num">${fmt(price)}</span></span>`+
-      `<span class="sub num">¥${fmt(price*qty)}</span>`;
-    box.appendChild(row);
-  });
-  if(!list.length){
-    const e=document.createElement("div"); e.className="row";
-    e.innerHTML = `<span class="name"><span class="nm" style="color:var(--faint);font-weight:500">頒布物を選ぶと、ここに表示されます</span></span><span></span><span></span>`;
-    box.appendChild(e);
-  }
-}
-
-function tweenTo(el, from, to, fmtFn){
-  if(from===to){ el.textContent = fmtFn(to); return; }
-  const dur = 420, t0 = performance.now();
-  const step = (t)=>{
-    const p = Math.min(1, (t-t0)/dur);
-    const e = 1 - Math.pow(1-p, 3);
-    el.textContent = fmtFn(from + (to-from)*e);
-    if(p<1) requestAnimationFrame(step);
-  };
-  requestAnimationFrame(step);
-}
-function fmt(n){ return (n<0?"-":"") + Math.abs(Math.round(n)).toLocaleString("ja-JP"); }
-function esc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
-
-function showNotice(kind, msg){
-  stopPolling(); clearInterval(remainTimer); show("notice");
-  const g=byId("nGlyph"), t=byId("nTitle"), b=byId("nBody"), btn=byId("nBtn");
-  if(kind==="expired"){ g.textContent="🌙"; t.textContent="同期を終了しました"; b.textContent="9時間が経過しました。日付が変わると再接続できます。"; btn.style.display="none"; }
-  else if(kind==="locked"){ g.textContent="🔒"; t.textContent="本日は認証済みです"; b.textContent = msg || "日付が変わると再認証できます。"; btn.style.display="none"; }
-  else { g.textContent="⚠️"; t.textContent="接続できません"; b.textContent = msg || "時間をおいて再度お試しください。"; btn.style.display="inline-block"; }
-}
-byId("nBtn").addEventListener("click", ()=>{ clearSession(); boot(); });
-
-function boot(){
-  if(DEMO){ return startPairing(); }
-  const s = loadSession();
-  if(s && s.expiresAt && Date.now() < s.expiresAt){
-    session = s; enterLive(); startRemain(); startPolling();
-  }else if(s && s.expiresAt){
-    clearSession(); showNotice("expired");
-  }else{
-    startPairing();
-  }
-}
-
-function demoPairing(){
-  const pin = String(Math.floor(Math.random()*1e8)).padStart(8,"0");
-  renderQR(pin); renderPin(pin);
-  setTimeout(()=>{
-    session = { expiresAt: Date.now() + 9*3600*1000 };
-    enterLive(); startRemain(); demoLoop();
-  }, 2600);
-}
-function demoLoop(){
-  const catalog = [
-    {name:"新刊「はるのいろ」", price:800, kind:"新刊"},
-    {name:"既刊セット", price:1500, kind:"既刊"},
-    {name:"アクリルキーホルダー", price:600, kind:""},
-    {name:"ポストカード", price:200, kind:""},
-    {name:"ステッカー", price:300, kind:""},
-  ];
-  const items = catalog.map(c=>({...c, qty:0}));
-  const bump = ()=>{
-    const it = items[Math.floor(Math.random()*items.length)];
-    it.qty += 1;
-    applyState({ title:"二次創作サークル はるつむぎ", items, ts:Date.now() });
-    setTimeout(bump, 1100 + Math.random()*1400);
-  };
-  applyState({ title:"二次創作サークル はるつむぎ", items, ts:Date.now() });
-  setTimeout(bump, 900);
-}
-
-if(document.readyState==="complete" || document.readyState==="interactive") boot();
-else window.addEventListener("DOMContentLoaded", boot);
-</script>
-</body>
-</html>
+    showNotice("error", "サーバーに接続できませんでした
