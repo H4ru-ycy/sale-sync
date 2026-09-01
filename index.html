@@ -33,6 +33,7 @@
   .screen{flex:1; min-height:0; display:none; flex-direction:column;}
   .screen.on{display:flex;}
 
+  /* ---------- shared top bar ---------- */
   .bar{
     display:flex; align-items:center; justify-content:space-between; gap:12px;
     padding: var(--pad) var(--pad) 0;
@@ -46,6 +47,7 @@
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(111,224,176,.55)}70%{box-shadow:0 0 0 12px rgba(111,224,176,0)}100%{box-shadow:0 0 0 0 rgba(111,224,176,0)}}
   .remain .num{color:var(--ink)}
 
+  /* ---------- LIVE screen ---------- */
   #live .total-wrap{
     flex:1; min-height:0; display:flex; flex-direction:column;
     align-items:center; justify-content:center; gap:6px; padding: 0 var(--pad);
@@ -86,6 +88,7 @@
     font-size:clamp(11px,1.8vw,14px); display:flex; justify-content:space-between; gap:10px;
   }
 
+  /* ---------- PAIRING screen ---------- */
   .center{flex:1; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:clamp(16px,3vh,26px); padding:var(--pad); text-align:center}
   .eyebrow{color:var(--muted); font-weight:700; letter-spacing:.18em; font-size:clamp(12px,2.2vw,15px)}
   .headline{font-weight:900; font-size:clamp(22px,4.6vw,34px); line-height:1.25}
@@ -107,6 +110,7 @@
   .hint b{color:var(--gold)}
   .subhint{color:var(--faint); font-size:clamp(11px,1.9vw,13px)}
 
+  /* ---------- notice screens (expired / locked / error) ---------- */
   .glyph{
     width:clamp(56px,12vw,84px); height:clamp(56px,12vw,84px); border-radius:50%;
     display:grid; place-items:center; background:var(--bg2); border:1px solid var(--line);
@@ -121,6 +125,52 @@
   }
   .btn:focus-visible{outline:3px solid var(--gold); outline-offset:2px}
   .btn:active{transform:translateY(1px)}
+
+  /* ---------- OSHINAGAKI (idle image) ---------- */
+  #oshi{padding:0}
+  #oshi .oshi-wrap{flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:clamp(6px,1.6vw,18px)}
+  #oshi img{max-width:100%; max-height:100%; object-fit:contain; border-radius:14px}
+
+  /* ---------- settings gear + modal ---------- */
+  .gear{
+    position:fixed; top:calc(env(safe-area-inset-top) + 8px); right:calc(env(safe-area-inset-right) + 8px);
+    z-index:40; width:42px; height:42px; border-radius:50%; border:1px solid var(--line);
+    background:rgba(43,33,66,.55); color:var(--muted); display:grid; place-items:center;
+    font-size:20px; opacity:.45; cursor:pointer; backdrop-filter:blur(4px);
+  }
+  .gear:active{transform:translateY(1px)}
+  .modal{
+    position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center;
+    padding:20px; background:rgba(10,6,18,.6); backdrop-filter:blur(3px);
+  }
+  .modal.on{display:flex}
+  .sheet{
+    width:100%; max-width:440px; background:var(--bg2); border:1px solid var(--line); border-radius:20px;
+    padding:22px; color:var(--ink); max-height:88vh; overflow:auto;
+  }
+  .sheet h2{font-size:20px; margin-bottom:2px}
+  .sheet p.sub{color:var(--muted); font-size:13px; line-height:1.6}
+  .field{margin:18px 0}
+  .field .label{font-weight:700; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; gap:10px}
+  .preview{
+    width:100%; aspect-ratio:4/3; background:var(--bg); border:1px dashed var(--line); border-radius:12px;
+    display:grid; place-items:center; overflow:hidden; color:var(--faint); font-size:13px;
+  }
+  .preview img{width:100%; height:100%; object-fit:contain}
+  .row-btns{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
+  .mini{
+    appearance:none; border:1px solid var(--line); background:var(--bg); color:var(--ink);
+    font:inherit; font-weight:700; font-size:14px; padding:10px 16px; border-radius:12px; cursor:pointer;
+  }
+  .mini.primary{background:var(--gold); color:#2a1c00; border-color:transparent}
+  .mini.danger{color:#f0a0a0}
+  .mini:active{transform:translateY(1px)}
+  .switch{position:relative; width:52px; height:30px; flex:none}
+  .switch input{position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer}
+  .switch .track{position:absolute; inset:0; background:var(--line); border-radius:999px; transition:background .2s}
+  .switch .thumb{position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%; background:#fff; transition:left .2s}
+  .switch input:checked ~ .track{background:var(--gold)}
+  .switch input:checked ~ .thumb{left:25px}
 
   @media (prefers-reduced-motion: reduce){
     .live .pulse{animation:none}
@@ -156,6 +206,7 @@
 <body>
 <div id="app">
 
+  <!-- PAIRING -->
   <section id="pair" class="screen">
     <div class="center">
       <div class="eyebrow">外部ディスプレイを接続</div>
@@ -167,6 +218,7 @@
     </div>
   </section>
 
+  <!-- LIVE -->
   <section id="live" class="screen">
     <div class="bar">
       <div class="brand"><span class="dot"></span><span class="name" id="title">売上表示</span></div>
@@ -184,6 +236,12 @@
     <div class="foot"><span id="updated">更新を待っています…</span><span>売上同期ディスプレイ</span></div>
   </section>
 
+  <!-- OSHINAGAKI (idle image) -->
+  <section id="oshi" class="screen">
+    <div class="oshi-wrap"><img id="oshiImg" alt="おしながき" /></div>
+  </section>
+
+  <!-- NOTICE (expired / date-locked / error) -->
   <section id="notice" class="screen">
     <div class="center">
       <div class="glyph" id="nGlyph">🌙</div>
@@ -195,14 +253,52 @@
 
 </div>
 
+<button class="gear" id="gear" type="button" aria-label="設定">⚙</button>
+
+<div class="modal" id="settings">
+  <div class="sheet">
+    <h2>設定</h2>
+    <p class="sub">この端末にのみ保存されます</p>
+
+    <div class="field">
+      <div class="label">おしながき画像</div>
+      <div class="preview" id="oshiPreview">画像が未設定です</div>
+      <div class="row-btns">
+        <button class="mini primary" id="pickImg" type="button">画像を選ぶ</button>
+        <button class="mini danger" id="delImg" type="button">削除</button>
+      </div>
+      <input id="fileInput" type="file" accept="image/png,image/jpeg" hidden />
+    </div>
+
+    <div class="field">
+      <div class="label">
+        待機中におしながきを表示
+        <label class="switch"><input type="checkbox" id="oshiToggle" /><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <p class="sub" style="margin:0">オンにすると、会計していない間は画像を表示し、金額が入ると自動で計算画面に切り替わります。</p>
+    </div>
+
+    <div class="row-btns" style="justify-content:flex-end; margin-top:20px">
+      <button class="mini" id="closeSettings" type="button">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <script>
+/* ============================================================
+   CONFIG
+   - 本番: API_BASE を "/api"（同一ドメイン配信）またはフルURLに。
+   - プレビュー: API_BASE を "" のままにするとデモが動きます。
+   ============================================================ */
 const CONFIG = {
-  API_BASE: "/api",
-  POLL_MS: 600,
+  API_BASE: "/api",   // 本番。編集不要（同じドメインで動きます）
+  POLL_MS: 600,       // 出力側のポーリング間隔
 };
+// デプロイ後は本番動作。ローカルで開いた時 or ?demo=1 の時だけ見た目デモ。
 const _q = new URLSearchParams(location.search);
 const DEMO = !CONFIG.API_BASE || _q.has("demo") || location.protocol === "file:";
 
+/* ---------- device id ---------- */
 function deviceId(){
   try{
     let id = localStorage.getItem("salesync.deviceId");
@@ -214,10 +310,12 @@ function loadSession(){ try{ return JSON.parse(localStorage.getItem("salesync.se
 function saveSession(s){ try{ localStorage.setItem("salesync.session", JSON.stringify(s)); }catch{} }
 function clearSession(){ try{ localStorage.removeItem("salesync.session"); }catch{} }
 
-const screens = { pair:byId("pair"), live:byId("live"), notice:byId("notice") };
+/* ---------- screens ---------- */
+const screens = { pair:byId("pair"), live:byId("live"), oshi:byId("oshi"), notice:byId("notice") };
 function show(name){ for(const k in screens) screens[k].classList.toggle("on", k===name); }
 function byId(id){ return document.getElementById(id); }
 
+/* ---------- API ---------- */
 async function api(path, opts){
   const res = await fetch(CONFIG.API_BASE + path, {
     headers:{ "Content-Type":"application/json" }, ...opts,
@@ -225,6 +323,9 @@ async function api(path, opts){
   return res.json();
 }
 
+/* ============================================================
+   PAIRING
+   ============================================================ */
 let qr, pollTimer, pairPin = null, session = null;
 
 function renderPin(pin){
@@ -253,4 +354,310 @@ async function startPairing(){
     renderQR(r.pin); renderPin(r.pin);
     startPolling();
   }catch{
-    showNotice("error", "サーバーに接続できませんでした
+    showNotice("error", "サーバーに接続できませんでした。ネットワークを確認してください。");
+  }
+}
+
+/* ============================================================
+   POLLING (pending -> active -> expired)
+   ============================================================ */
+function startPolling(){
+  stopPolling();
+  const tick = async ()=>{
+    try{
+      const r = await api(`/state/pull?sessionId=${encodeURIComponent(session.sessionId)}&token=${encodeURIComponent(session.outToken)}`);
+      if(r.status === "pending"){ /* keep showing QR */ }
+      else if(r.status === "active"){
+        session.expiresAt = r.expiresAt;
+        saveSession(session);
+        if(!connected){ connected = true; startRemain(); }
+        lastState = r.state;
+        applyState(r.state);
+        routeView(r.state);
+      }
+      else if(r.status === "expired"){ stopPolling(); clearSession(); showNotice("expired"); return; }
+      else if(r.status === "invalid"){
+        // pending PIN likely expired unclaimed -> get a fresh one (still same day, pre-auth)
+        if(!screens.live.classList.contains("on")){ stopPolling(); startPairing(); return; }
+        stopPolling(); clearSession(); showNotice("expired"); return;
+      }
+    }catch{/* transient network error: keep polling */}
+    pollTimer = setTimeout(tick, CONFIG.POLL_MS);
+  };
+  tick();
+}
+function stopPolling(){ if(pollTimer){ clearTimeout(pollTimer); pollTimer=null; } }
+
+/* ============================================================
+   LIVE DISPLAY
+   ============================================================ */
+let displayedTotal = 0, remainTimer, lastItemsKey = "";
+
+function enterLive(){ show("live"); startRemain(); }
+
+function startRemain(){
+  clearInterval(remainTimer);
+  const upd = ()=>{
+    if(!session || !session.expiresAt) return;
+    let ms = session.expiresAt - Date.now();
+    if(ms <= 0){ clearInterval(remainTimer); stopPolling(); clearSession(); showNotice("expired"); return; }
+    const s = Math.floor(ms/1000);
+    const h = Math.floor(s/3600), m = Math.floor(s%3600/60), sec = s%60;
+    byId("remain").textContent = `${h}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+  };
+  upd(); remainTimer = setInterval(upd, 1000);
+}
+
+function applyState(state){
+  if(!state){ return; }
+  if(state.title) byId("title").textContent = state.title;
+  const items = Array.isArray(state.items) ? state.items : [];
+  const total = Number.isFinite(state.total) ? state.total
+    : items.reduce((a,it)=> a + (Number(it.price)||0)*(Number(it.qty)||0), 0);
+  const count = items.reduce((a,it)=> a + (Number(it.qty)||0), 0);
+
+  tweenTo(byId("figure"), displayedTotal, total, v=>fmt(Math.round(v)));
+  displayedTotal = total;
+  byId("count").textContent = fmt(count);
+
+  const key = items.map(it=>`${it.name}|${it.qty}|${it.price}`).join(";");
+  renderItems(items, key !== lastItemsKey);
+  lastItemsKey = key;
+
+  const ago = state.ts ? Math.max(0, Math.round((Date.now()-state.ts)/1000)) : 0;
+  byId("updated").textContent = state.ts ? `更新 ${ago===0?"たった今":ago+"秒前"}` : "更新を待っています…";
+}
+
+function renderItems(items, flashLast){
+  const box = byId("items"); box.innerHTML = "";
+  // newest first, only the ones with qty>0, cap to what fits
+  const list = items.filter(it => (Number(it.qty)||0) > 0);
+  list.slice().reverse().forEach((it,idx)=>{
+    const row = document.createElement("div");
+    row.className = "row" + (flashLast && idx===0 ? " flash" : "");
+    const price = Number(it.price)||0, qty = Number(it.qty)||0;
+    const kind = it.kind!=null ? String(it.kind) : "";
+    const isNew = kind==="新刊" || kind==="new" || kind==="NEW";
+    const isOld = kind==="既刊" || kind==="old" || kind==="OLD";
+    const badge = isNew ? `<span class="kbadge k-new">新刊</span>`
+               : isOld ? `<span class="kbadge k-old">既刊</span>` : "";
+    row.innerHTML =
+      `<span class="name"><span class="nm">${esc(it.name||"（無題）")}</span>${badge}</span>`+
+      `<span class="qty"><span class="num">${qty}</span>点 × ¥<span class="num">${fmt(price)}</span></span>`+
+      `<span class="sub num">¥${fmt(price*qty)}</span>`;
+    box.appendChild(row);
+  });
+  if(!list.length){
+    const e=document.createElement("div"); e.className="row";
+    e.innerHTML = `<span class="name" style="color:var(--faint);font-weight:500">頒布物を選ぶと、ここに表示されます</span><span></span><span></span>`;
+    box.appendChild(e);
+  }
+}
+
+/* number tween */
+function tweenTo(el, from, to, fmtFn){
+  if(from===to){ el.textContent = fmtFn(to); return; }
+  const dur = 420, t0 = performance.now();
+  const step = (t)=>{
+    const p = Math.min(1, (t-t0)/dur);
+    const e = 1 - Math.pow(1-p, 3);
+    el.textContent = fmtFn(from + (to-from)*e);
+    if(p<1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+function fmt(n){ return (n<0?"-":"") + Math.abs(Math.round(n)).toLocaleString("ja-JP"); }
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ============================================================
+   NOTICE SCREENS
+   ============================================================ */
+function showNotice(kind, msg){
+  stopPolling(); clearInterval(remainTimer); clearIdle(); show("notice");
+  const g=byId("nGlyph"), t=byId("nTitle"), b=byId("nBody"), btn=byId("nBtn");
+  if(kind==="expired"){ g.textContent="🌙"; t.textContent="同期を終了しました"; b.textContent="9時間が経過しました。日付が変わると再接続できます。"; btn.style.display="none"; }
+  else if(kind==="locked"){ g.textContent="🔒"; t.textContent="本日は認証済みです"; b.textContent = msg || "日付が変わると再認証できます。"; btn.style.display="none"; }
+  else { g.textContent="⚠️"; t.textContent="接続できません"; b.textContent = msg || "時間をおいて再度お試しください。"; btn.style.display="inline-block"; }
+}
+byId("nBtn").addEventListener("click", ()=>{ clearSession(); boot(); });
+
+/* ============================================================
+   OSHINAGAKI (idle image) — settings + view routing
+   ============================================================ */
+const IDLE_MS = 4000;            // 会計後、待機画像に戻るまでの猶予
+let oshiEnabled = true, oshiImage = null;
+let connected = false, idleTimer = null, lastState = null;
+
+/* --- IndexedDB (画像はここに保存。localStorageの容量制限を回避) --- */
+const IDB_NAME = "salesync", IDB_STORE = "kv";
+function idbOpen(){
+  return new Promise((res, rej)=>{
+    const r = indexedDB.open(IDB_NAME, 1);
+    r.onupgradeneeded = ()=> r.result.createObjectStore(IDB_STORE);
+    r.onsuccess = ()=> res(r.result);
+    r.onerror = ()=> rej(r.error);
+  });
+}
+async function idbSet(k, v){ const db = await idbOpen(); return new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,"readwrite"); t.objectStore(IDB_STORE).put(v,k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+async function idbGet(k){ const db = await idbOpen(); return new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,"readonly"); const rq=t.objectStore(IDB_STORE).get(k); rq.onsuccess=()=>res(rq.result||null); rq.onerror=()=>rej(rq.error); }); }
+async function idbDel(k){ const db = await idbOpen(); return new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,"readwrite"); t.objectStore(IDB_STORE).delete(k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+
+/* --- 会計中かどうか（合計>0 か 点数>0 なら会計中） --- */
+function isActive(state){
+  if(!state) return false;
+  const items = Array.isArray(state.items) ? state.items : [];
+  const total = Number.isFinite(state.total) ? state.total
+    : items.reduce((a,it)=> a + (Number(it.price)||0)*(Number(it.qty)||0), 0);
+  const count = items.reduce((a,it)=> a + (Number(it.qty)||0), 0);
+  return total > 0 || count > 0;
+}
+function clearIdle(){ if(idleTimer){ clearTimeout(idleTimer); idleTimer=null; } }
+
+/* --- 接続中の表示切り替え：会計中=計算画面／待機中=おしながき --- */
+function routeView(state){
+  if(!connected) return;
+  if(screens.notice.classList.contains("on")) return;
+  if(isActive(state)){
+    clearIdle();
+    show("live");
+    return;
+  }
+  // 待機（idle）
+  if(oshiEnabled && oshiImage){
+    if(screens.live.classList.contains("on")){
+      // 直前まで計算画面 → 少し待ってから戻す（会計間の点滅防止）
+      if(!idleTimer){
+        idleTimer = setTimeout(()=>{ idleTimer=null; if(connected && !isActive(lastState)) show("oshi"); }, IDLE_MS);
+      }
+    }else{
+      show("oshi"); // 初回接続などは即おしながき
+    }
+  }else{
+    show("live"); // 画像が無い/オフなら従来どおり計算画面(¥0)
+  }
+}
+
+/* --- 画像を選択 → 縮小 → 保存 --- */
+function downscaleImage(file, maxDim){
+  return new Promise((res, rej)=>{
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = ()=>{
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const scale = Math.min(1, maxDim / Math.max(w, h));
+      w = Math.round(w*scale); h = Math.round(h*scale);
+      const c = document.createElement("canvas"); c.width=w; c.height=h;
+      c.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      let out = c.toDataURL("image/png");
+      if(out.length > 3_500_000) out = c.toDataURL("image/jpeg", 0.9);
+      res(out);
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error("load failed")); };
+    img.src = url;
+  });
+}
+async function onImagePicked(file){
+  const dataUrl = await downscaleImage(file, 2400);
+  oshiImage = dataUrl;
+  try{ await idbSet("oshi.image", dataUrl); }catch{}
+  byId("oshiImg").src = dataUrl;
+  refreshSettingsUI();
+  routeView(lastState);
+}
+
+/* --- 設定UI --- */
+function refreshSettingsUI(){
+  const p = byId("oshiPreview");
+  if(oshiImage){ p.innerHTML = `<img src="${oshiImage}" alt="preview">`; }
+  else{ p.textContent = "画像が未設定です"; }
+  byId("oshiToggle").checked = oshiEnabled;
+  byId("delImg").style.display = oshiImage ? "" : "none";
+}
+async function initSettings(){
+  oshiEnabled = localStorage.getItem("salesync.oshiEnabled") !== "0"; // 既定ON
+  try{ oshiImage = await idbGet("oshi.image"); }catch{ oshiImage = null; }
+  if(oshiImage) byId("oshiImg").src = oshiImage;
+  refreshSettingsUI();
+}
+byId("gear").addEventListener("click", ()=>{ refreshSettingsUI(); byId("settings").classList.add("on"); });
+byId("closeSettings").addEventListener("click", ()=> byId("settings").classList.remove("on"));
+byId("settings").addEventListener("click", e=>{ if(e.target.id==="settings") byId("settings").classList.remove("on"); });
+byId("pickImg").addEventListener("click", ()=> byId("fileInput").click());
+byId("fileInput").addEventListener("change", async e=>{
+  const f = e.target.files && e.target.files[0];
+  if(f){ try{ await onImagePicked(f); }catch{ alert("画像の読み込みに失敗しました"); } }
+  e.target.value = "";
+});
+byId("delImg").addEventListener("click", async ()=>{
+  oshiImage = null;
+  try{ await idbDel("oshi.image"); }catch{}
+  byId("oshiImg").removeAttribute("src");
+  refreshSettingsUI();
+  routeView(lastState);
+});
+byId("oshiToggle").addEventListener("change", e=>{
+  oshiEnabled = e.target.checked;
+  try{ localStorage.setItem("salesync.oshiEnabled", oshiEnabled ? "1" : "0"); }catch{}
+  routeView(lastState);
+});
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+function boot(){
+  if(DEMO){ return startPairing(); }
+  const s = loadSession();
+  if(s && s.expiresAt && Date.now() < s.expiresAt){
+    session = s; connected = true; startRemain(); startPolling(); routeView(null);
+  }else if(s && s.expiresAt){
+    clearSession(); showNotice("expired");
+  }else{
+    startPairing();
+  }
+}
+
+/* ============================================================
+   DEMO (preview only — no backend)
+   ============================================================ */
+function demoPairing(){
+  const pin = String(Math.floor(Math.random()*1e8)).padStart(8,"0");
+  renderQR(pin); renderPin(pin);
+  setTimeout(()=>{
+    session = { expiresAt: Date.now() + 9*3600*1000 };
+    connected = true; startRemain(); demoLoop();
+  }, 2600);
+}
+function demoLoop(){
+  const catalog = [
+    {name:"新刊「はるのいろ」", price:800, kind:"新刊"},
+    {name:"既刊セット", price:1500, kind:"既刊"},
+    {name:"アクリルキーホルダー", price:600, kind:"既刊"},
+    {name:"ポストカード", price:200, kind:"新刊"},
+    {name:"ステッカー", price:300, kind:"既刊"},
+  ];
+  const title = "二次創作サークル はるつむぎ";
+  const push = (items)=>{ lastState = { title, items, ts:Date.now() }; applyState(lastState); routeView(lastState); };
+  const transaction = ()=>{
+    push([]);                                   // 待機（画像があればおしながき表示）
+    const items = catalog.map(c=>({...c, qty:0}));
+    const n = 2 + Math.floor(Math.random()*4);
+    let i = 0;
+    const add = ()=>{
+      items[Math.floor(Math.random()*items.length)].qty += 1;
+      push(items.map(x=>({...x})));             // 会計中（計算画面）
+      if(++i < n){ setTimeout(add, 900 + Math.random()*900); }
+      else { setTimeout(()=>{ push([]); setTimeout(transaction, IDLE_MS + 3000); }, 2500); } // 会計完了→待機へ
+    };
+    setTimeout(add, 1400);
+  };
+  transaction();
+}
+
+/* start */
+function start(){ initSettings().finally(boot); }
+if(document.readyState==="complete" || document.readyState==="interactive") start();
+else window.addEventListener("DOMContentLoaded", start);
+</script>
+</body>
+</html>
