@@ -159,6 +159,21 @@
     .headline{ font-size:clamp(16px,4vh,26px); }
     .qcard img, .qcard canvas{ width:min(clamp(140px,34vw,220px), 46vh); }
   }
+  /* ---------- 待機スライドショー ---------- */
+  #idleLayer{position:fixed; inset:0; z-index:20; background:#000; opacity:0; pointer-events:none; transition:opacity .6s ease}
+  #idleLayer.on{opacity:1}
+  #idleLayer img{position:absolute; inset:0; width:100%; height:100%; object-fit:contain; opacity:0; transition:opacity 1s ease}
+  #idleLayer.cover img{object-fit:cover}
+  #idleLayer img.show{opacity:1}
+
+  /* ---------- 割り込み表示 ---------- */
+  #alertLayer{position:fixed; z-index:30; display:none; align-items:center; justify-content:center; text-align:center;
+    font-weight:900; line-height:1.25; white-space:pre-line; word-break:break-word; overflow-wrap:anywhere}
+  #alertLayer.on{display:flex}
+  #alertLayer.full{inset:0; padding:6vmin}
+  #alertLayer.banner{left:0; right:0; top:0; padding:2.4vmin 4vmin; box-shadow:0 10px 40px rgba(0,0,0,.45)}
+  #alertLayer.pop{animation:alertIn .35s ease-out}
+  @keyframes alertIn{from{opacity:0; transform:scale(.98)} to{opacity:1; transform:none}}
 </style>
 </head>
 <body>
@@ -203,6 +218,10 @@
       <button class="btn" id="nBtn" type="button">もう一度接続する</button>
     </div>
   </section>
+
+  <!-- 待機スライドショー / 割り込み表示（live 画面の上に重ねる） -->
+  <div id="idleLayer" aria-hidden="true"><img id="idleA" alt="" /><img id="idleB" alt="" /></div>
+  <div id="alertLayer" role="status" aria-live="assertive"><span id="alertText"></span></div>
 
 </div>
 
@@ -345,6 +364,9 @@ function applyState(state){
   renderItems(items, key !== lastItemsKey);
   lastItemsKey = key;
 
+  applyIdle(state.idle, count === 0 && total === 0);
+  applyAlert(state.alert);
+
   const ago = state.ts ? Math.max(0, Math.round((Date.now()-state.ts)/1000)) : 0;
   byId("updated").textContent = state.ts ? `更新 ${ago===0?"たった今":ago+"秒前"}` : "更新を待っています…";
 }
@@ -373,6 +395,95 @@ function renderItems(items, flashLast){
   }
 }
 
+
+/* ============================================================
+   待機スライドショー / 割り込み表示
+   - state.idle  = {on, sec, fit, ver, count}：会計が空(¥0)の間、画像を順に表示
+   - state.alert = {on, text, size, color, bg, style}：最優先で重ねて表示
+   ============================================================ */
+const IDLE_DELAY_MS = 1500;      // 会計が空になってからスライドに切り替わるまで
+let idleCfg = null, slides = [], slidesVer = null, slidesLoading = false;
+let idleShown = false, idleWaitTimer = null, slideTimer = null, slideSec = null, slideIdx = 0, slideFront = "idleA";
+let lastAlertKey = "";
+
+async function loadSlides(ver){
+  if(slidesLoading || !session) return;
+  slidesLoading = true;
+  try{
+    const r = await api(`/media/pull?sessionId=${encodeURIComponent(session.sessionId)}&token=${encodeURIComponent(session.outToken)}`);
+    if(r && r.status === "ok"){
+      slides = Array.isArray(r.slides) ? r.slides : [];
+      slidesVer = ver; // 同じverを何度も取りに行かない
+      slideIdx = 0;
+      if(idleShown){ restartSlides(); }
+    }
+  }catch{ /* 次の更新で再試行 */ }
+  slidesLoading = false;
+}
+
+function applyIdle(cfg, isEmpty){
+  idleCfg = cfg || null;
+  const want = !!(idleCfg && idleCfg.on && isEmpty);
+  if(want && idleCfg.ver && idleCfg.ver !== slidesVer) loadSlides(idleCfg.ver);
+  byId("idleLayer").classList.toggle("cover", !!(idleCfg && idleCfg.fit === "cover"));
+  if(want && slides.length){
+    if(!idleShown && !idleWaitTimer){
+      idleWaitTimer = setTimeout(()=>{ idleWaitTimer = null; showIdle(); }, IDLE_DELAY_MS);
+    }else if(idleShown && slideSec !== idleCfg.sec){
+      restartSlides(); // 秒数の変更を反映
+    }
+  }else{
+    hideIdle();
+  }
+}
+function showIdle(){
+  if(!slides.length) return;
+  idleShown = true;
+  byId("idleLayer").classList.add("on");
+  restartSlides();
+}
+function hideIdle(){
+  if(idleWaitTimer){ clearTimeout(idleWaitTimer); idleWaitTimer = null; }
+  if(slideTimer){ clearInterval(slideTimer); slideTimer = null; }
+  slideSec = null;
+  if(idleShown){ idleShown = false; byId("idleLayer").classList.remove("on"); }
+}
+function restartSlides(){
+  if(slideTimer){ clearInterval(slideTimer); slideTimer = null; }
+  if(!slides.length){ hideIdle(); return; }
+  if(slideIdx >= slides.length) slideIdx = 0;
+  setSlide(slides[slideIdx]);
+  const sec = Math.max(2, Number(idleCfg && idleCfg.sec) || 8);
+  slideSec = idleCfg && idleCfg.sec;
+  if(slides.length > 1){
+    slideTimer = setInterval(()=>{ slideIdx = (slideIdx + 1) % slides.length; setSlide(slides[slideIdx]); }, sec * 1000);
+  }
+}
+function setSlide(src){
+  const back = slideFront === "idleA" ? "idleB" : "idleA";
+  const img = byId(back);
+  const swap = ()=>{ img.onload = null; img.classList.add("show"); if(slideFront !== back) byId(slideFront).classList.remove("show"); slideFront = back; };
+  if(img.getAttribute("src") === src && img.complete){ swap(); }
+  else { img.onload = swap; img.src = src; }
+}
+
+function applyAlert(a){
+  const el = byId("alertLayer");
+  if(!a || !a.on || !String(a.text||"").trim()){
+    el.classList.remove("on","pop"); lastAlertKey = ""; return;
+  }
+  const key = [a.text,a.size,a.color,a.bg,a.style].join("|");
+  if(key === lastAlertKey) return;
+  lastAlertKey = key;
+  el.className = (a.style === "banner" ? "banner" : "full");
+  el.style.background = a.bg || "#c0392b";
+  el.style.color = a.color || "#ffffff";
+  el.style.fontSize = (Number(a.size)||12) + "vmin";
+  byId("alertText").textContent = a.text;
+  void el.offsetWidth; // アニメーションをやり直す
+  el.classList.add("on","pop");
+}
+
 /* number tween */
 function tweenTo(el, from, to, fmtFn){
   if(from===to){ el.textContent = fmtFn(to); return; }
@@ -392,7 +503,7 @@ function esc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;"
    NOTICE SCREENS
    ============================================================ */
 function showNotice(kind, msg){
-  stopPolling(); clearInterval(remainTimer); show("notice");
+  stopPolling(); clearInterval(remainTimer); hideIdle(); applyAlert(null); show("notice");
   const g=byId("nGlyph"), t=byId("nTitle"), b=byId("nBody"), btn=byId("nBtn");
   if(kind==="expired"){ g.textContent="🌙"; t.textContent="同期を終了しました"; b.textContent="9時間が経過しました。日付が変わると再接続できます。"; btn.style.display="none"; }
   else if(kind==="locked"){ g.textContent="🔒"; t.textContent="本日は認証済みです"; b.textContent = msg || "日付が変わると再認証できます。"; btn.style.display="none"; }
