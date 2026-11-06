@@ -3,6 +3,54 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#201830" />
+<script>
+/* ホーム画面アプリ用の設定とアイコンをここで自動生成（別ファイルのアップロード不要） */
+(function(){
+  try{
+    if(!/^https?:$/.test(location.protocol)) return;
+    function icon(size, maskable){
+      var c = document.createElement("canvas"); c.width = c.height = size;
+      var g = c.getContext("2d");
+      g.fillStyle = "#201830"; g.fillRect(0, 0, size, size);
+      var pad = size * (maskable ? 0.30 : 0.16);
+      g.beginPath(); g.arc(size/2, size/2, size/2 - pad, 0, Math.PI*2);
+      g.fillStyle = "#2b2142"; g.fill();
+      g.lineWidth = Math.max(2, size/90); g.strokeStyle = "#3a2f52"; g.stroke();
+      g.fillStyle = "#f6c56b"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.font = "900 " + Math.round(size * (maskable ? 0.34 : 0.46)) + "px sans-serif";
+      g.fillText("¥", size/2, size/2 + size*0.02);
+      return c.toDataURL("image/png");
+    }
+    var i192 = icon(192), i512 = icon(512), iMask = icon(512, true);
+    var manifest = {
+      name: "売上同期ディスプレイ", short_name: "売上表示",
+      description: "売上計算ツールの内容を別端末に表示します",
+      start_url: location.origin + "/", scope: location.origin + "/",
+      id: location.origin + "/",
+      display: "fullscreen", display_override: ["fullscreen", "standalone"],
+      orientation: "landscape", background_color: "#201830", theme_color: "#201830", lang: "ja",
+      icons: [
+        { src: i192,  sizes: "192x192", type: "image/png" },
+        { src: i512,  sizes: "512x512", type: "image/png" },
+        { src: iMask, sizes: "512x512", type: "image/png", purpose: "maskable" }
+      ]
+    };
+    var url = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" }));
+    function link(rel, href, extra){
+      var l = document.createElement("link"); l.rel = rel; l.href = href;
+      if(extra) for(var k in extra) l.setAttribute(k, extra[k]);
+      document.head.appendChild(l);
+    }
+    link("manifest", url);
+    link("icon", i192, { type: "image/png" });
+    link("apple-touch-icon", i192);
+  }catch(e){}
+})();
+</script>
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <title>外部ディスプレイ｜売上同期</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -29,7 +77,6 @@
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   .num{font-family:"Roboto Mono", monospace; font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;}
-  .hidden{display:none !important;}
   #app{height:100vh; height:100dvh; display:flex; flex-direction:column;}
   .screen{flex:1; min-height:0; display:none; flex-direction:column;}
   .screen.on{display:flex;}
@@ -127,6 +174,80 @@
   .btn:focus-visible{outline:3px solid var(--gold); outline-offset:2px}
   .btn:active{transform:translateY(1px)}
 
+  /* ---------- OSHINAGAKI (idle image) ---------- */
+  #oshi{padding:0}
+  #oshi .oshi-wrap{flex:1; min-height:0; position:relative; padding:clamp(6px,1.6vw,18px)}
+  #oshi .oshi-wrap img{
+    position:absolute; inset:clamp(6px,1.6vw,18px); margin:auto;
+    max-width:100%; max-height:100%; object-fit:contain; border-radius:14px;
+    opacity:0; transition:opacity .7s ease;
+  }
+  #oshi .oshi-wrap img.show{opacity:1}
+
+  /* ---------- settings gear + modal ---------- */
+  .gear{
+    position:fixed; top:calc(env(safe-area-inset-top) + 8px); right:calc(env(safe-area-inset-right) + 8px);
+    z-index:40; width:42px; height:42px; border-radius:50%; border:1px solid var(--line);
+    background:rgba(43,33,66,.55); color:var(--muted); display:grid; place-items:center;
+    font-size:20px; opacity:.45; cursor:pointer; backdrop-filter:blur(4px);
+  }
+  .gear:active{transform:translateY(1px)}
+  .fsbtn{
+    position:fixed; top:calc(env(safe-area-inset-top) + 8px); right:calc(env(safe-area-inset-right) + 58px);
+    z-index:40; height:42px; padding:0 16px 0 12px; border-radius:999px; border:1px solid var(--gold);
+    background:rgba(43,33,66,.85); color:var(--gold); display:flex; align-items:center; gap:7px;
+    font:inherit; font-weight:700; font-size:14px; cursor:pointer; backdrop-filter:blur(4px);
+  }
+  .fsbtn:active{transform:translateY(1px)}
+  .fsbtn svg{width:20px; height:20px; flex:none; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
+  /* すでに全画面（ホーム画面アプリ起動中・全画面中）ならボタンは控えめに */
+  .fsbtn.is-fs{ border-color:var(--line); color:var(--muted); opacity:.5 }
+  body.app-mode .fsbtn{ display:none }
+  .gear, .fsbtn{ transition:opacity .4s ease }
+  body.ui-idle .gear, body.ui-idle .fsbtn{ opacity:0; pointer-events:none }
+  @media (orientation: landscape){ .gear{ opacity:.6 } }
+  .modal{
+    position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center;
+    padding:20px; background:rgba(10,6,18,.6); backdrop-filter:blur(3px);
+  }
+  .modal.on{display:flex}
+  .sheet{
+    width:100%; max-width:440px; background:var(--bg2); border:1px solid var(--line); border-radius:20px;
+    padding:22px; color:var(--ink); max-height:88vh; overflow:auto;
+  }
+  .sheet h2{font-size:20px; margin-bottom:2px}
+  .sheet p.sub{color:var(--muted); font-size:13px; line-height:1.6}
+  .field{margin:18px 0}
+  .field .label{font-weight:700; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; gap:10px}
+  .preview{
+    width:100%; aspect-ratio:4/3; background:var(--bg); border:1px dashed var(--line); border-radius:12px;
+    display:grid; place-items:center; overflow:hidden; color:var(--faint); font-size:13px;
+  }
+  .preview img{width:100%; height:100%; object-fit:contain}
+  .thumbs{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:2px}
+  .thumb-empty{color:var(--faint); font-size:13px; padding:14px 0}
+  .thumb-item{position:relative; width:74px; height:56px; border-radius:9px; overflow:hidden; border:1px solid var(--line); background:var(--bg); flex:none}
+  .thumb-item img{width:100%; height:100%; object-fit:cover; display:block}
+  .thumb-item .rm{
+    position:absolute; top:2px; right:2px; width:20px; height:20px; border-radius:50%;
+    background:rgba(10,6,18,.65); color:#fff; border:none; font-size:12px; line-height:20px;
+    text-align:center; padding:0; cursor:pointer;
+  }
+  .row-btns{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
+  .mini{
+    appearance:none; border:1px solid var(--line); background:var(--bg); color:var(--ink);
+    font:inherit; font-weight:700; font-size:14px; padding:10px 16px; border-radius:12px; cursor:pointer;
+  }
+  .mini.primary{background:var(--gold); color:#2a1c00; border-color:transparent}
+  .mini.danger{color:#f0a0a0}
+  .mini:active{transform:translateY(1px)}
+  .switch{position:relative; width:52px; height:30px; flex:none}
+  .switch input{position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer}
+  .switch .track{position:absolute; inset:0; background:var(--line); border-radius:999px; transition:background .2s}
+  .switch .thumb{position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%; background:#fff; transition:left .2s}
+  .switch input:checked ~ .track{background:var(--gold)}
+  .switch input:checked ~ .thumb{left:25px}
+
   @media (prefers-reduced-motion: reduce){
     .live .pulse{animation:none}
     *{transition:none !important}
@@ -135,7 +256,6 @@
   /* ===== 横画面（タブレット等）最適化：縦積みのまま高さに収める ===== */
   @media (orientation: landscape){
     :root{ --pad: clamp(12px, 2.6vh, 26px); }
-    /* 売上表示：合計が縦を占有しすぎないよう高さでも制限 */
     .total .yen{ font-size:min(clamp(30px,7vw,64px), 13vh); }
     .total .figure{ font-size:min(clamp(64px,20vw,190px), 30vh); }
     .total-label{ font-size:clamp(12px,2.2vh,17px); }
@@ -143,7 +263,6 @@
     .count-pill{ margin-top:2px; }
     .items{ max-height:34vh; }
     .row{ padding:clamp(6px,1.3vh,12px) 2px; }
-    /* 接続画面：QR・PIN・見出しを高さに合わせて縮める */
     .center{ gap:clamp(10px,2vh,20px); }
     .headline{ font-size:clamp(18px,3.4vh,30px); }
     .qcard{ padding:clamp(10px,1.6vh,18px); }
@@ -152,28 +271,12 @@
     .hint{ font-size:clamp(12px,2.2vh,16px); }
     .subhint{ font-size:clamp(10px,1.7vh,13px); }
   }
-  /* さらに背の低い横画面（スマホ横）向けの詰め */
   @media (orientation: landscape) and (max-height: 480px){
     .total .figure{ font-size:min(clamp(56px,16vw,150px), 34vh); }
     .items{ max-height:40vh; }
     .headline{ font-size:clamp(16px,4vh,26px); }
     .qcard img, .qcard canvas{ width:min(clamp(140px,34vw,220px), 46vh); }
   }
-  /* ---------- 待機スライドショー ---------- */
-  #idleLayer{position:fixed; inset:0; z-index:20; background:#000; opacity:0; pointer-events:none; transition:opacity .6s ease}
-  #idleLayer.on{opacity:1}
-  #idleLayer img{position:absolute; inset:0; width:100%; height:100%; object-fit:contain; opacity:0; transition:opacity 1s ease}
-  #idleLayer.cover img{object-fit:cover}
-  #idleLayer img.show{opacity:1}
-
-  /* ---------- 割り込み表示 ---------- */
-  #alertLayer{position:fixed; z-index:30; display:none; align-items:center; justify-content:center; text-align:center;
-    font-weight:900; line-height:1.25; white-space:pre-line; word-break:break-word; overflow-wrap:anywhere}
-  #alertLayer.on{display:flex}
-  #alertLayer.full{inset:0; padding:6vmin}
-  #alertLayer.banner{left:0; right:0; top:0; padding:2.4vmin 4vmin; box-shadow:0 10px 40px rgba(0,0,0,.45)}
-  #alertLayer.pop{animation:alertIn .35s ease-out}
-  @keyframes alertIn{from{opacity:0; transform:scale(.98)} to{opacity:1; transform:none}}
 </style>
 </head>
 <body>
@@ -201,12 +304,17 @@
       </div>
     </div>
     <div class="total-wrap">
-      <div class="total-label" id="totalLabel">合計</div>
+      <div class="total-label">合計</div>
       <div class="total"><span class="yen">¥</span><span class="figure num" id="figure">0</span></div>
-      <div class="count-pill hidden">点数 <span class="num" id="count">0</span></div>
+      <div class="count-pill">点数 <span class="num" id="count">0</span></div>
     </div>
     <div class="items" id="items"></div>
     <div class="foot"><span id="updated">更新を待っています…</span><span>売上同期ディスプレイ</span></div>
+  </section>
+
+  <!-- OSHINAGAKI (idle image) -->
+  <section id="oshi" class="screen">
+    <div class="oshi-wrap"><img id="oshiImgA" alt="おしながき" /><img id="oshiImgB" alt="おしながき" /></div>
   </section>
 
   <!-- NOTICE (expired / date-locked / error) -->
@@ -219,10 +327,60 @@
     </div>
   </section>
 
-  <!-- 待機スライドショー / 割り込み表示（live 画面の上に重ねる） -->
-  <div id="idleLayer" aria-hidden="true"><img id="idleA" alt="" /><img id="idleB" alt="" /></div>
-  <div id="alertLayer" role="status" aria-live="assertive"><span id="alertText"></span></div>
+</div>
 
+<button class="fsbtn" id="fsBtn" type="button" aria-label="全画面表示">
+  <svg id="fsIcon" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+  <span id="fsLabel">全画面</span>
+</button>
+<button class="gear" id="gear" type="button" aria-label="設定">⚙</button>
+
+<div class="modal" id="settings">
+  <div class="sheet">
+    <h2>設定</h2>
+    <p class="sub">この端末にのみ保存されます</p>
+
+    <div class="field">
+      <div class="label">おしながき画像（複数登録すると自動で順番に切り替わります）</div>
+      <div class="thumbs" id="oshiThumbs"></div>
+      <div class="row-btns">
+        <button class="mini primary" id="pickImg" type="button">画像を追加</button>
+      </div>
+      <input id="fileInput" type="file" accept="image/png,image/jpeg" multiple hidden />
+    </div>
+
+    <div class="field" id="intervalField">
+      <div class="label">1枚あたりの表示時間</div>
+      <div class="row-btns" id="intervalBtns">
+        <button class="mini" type="button" data-sec="4">4秒</button>
+        <button class="mini" type="button" data-sec="6">6秒</button>
+        <button class="mini" type="button" data-sec="8">8秒</button>
+        <button class="mini" type="button" data-sec="10">10秒</button>
+      </div>
+      <p class="sub" style="margin:8px 0 0">画像が2枚以上のときだけ切り替わります。1枚だけならそのまま表示され続けます。</p>
+    </div>
+
+    <div class="field">
+      <div class="label">
+        待機中におしながきを表示
+        <label class="switch"><input type="checkbox" id="oshiToggle" /><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <p class="sub" style="margin:0">オンにすると、会計していない間は画像を表示し、金額が入ると自動で計算画面に切り替わります。</p>
+    </div>
+
+    <div class="field" id="installField">
+      <div class="label">アプリとして全画面で使う</div>
+      <p class="sub" style="margin:0 0 8px">ホーム画面に追加すると、アドレスバーなしの全画面（横向き）で起動します。</p>
+      <div class="row-btns" style="margin-top:0">
+        <button class="mini primary" id="installBtn" type="button" style="display:none">ホーム画面に追加</button>
+      </div>
+      <p class="sub" id="installHint" style="margin:8px 0 0">ブラウザのメニュー（︙）→「ホーム画面に追加」または「アプリをインストール」を選び、できたアイコンから開いてください。</p>
+    </div>
+
+    <div class="row-btns" style="justify-content:flex-end; margin-top:20px">
+      <button class="mini" id="closeSettings" type="button">閉じる</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -252,8 +410,11 @@ function saveSession(s){ try{ localStorage.setItem("salesync.session", JSON.stri
 function clearSession(){ try{ localStorage.removeItem("salesync.session"); }catch{} }
 
 /* ---------- screens ---------- */
-const screens = { pair:byId("pair"), live:byId("live"), notice:byId("notice") };
-function show(name){ for(const k in screens) screens[k].classList.toggle("on", k===name); }
+const screens = { pair:byId("pair"), live:byId("live"), oshi:byId("oshi"), notice:byId("notice") };
+function show(name){
+  for(const k in screens) screens[k].classList.toggle("on", k===name);
+  if(name === "oshi") startSlideshow(); else stopSlideshow();
+}
 function byId(id){ return document.getElementById(id); }
 
 /* ---------- API ---------- */
@@ -311,8 +472,10 @@ function startPolling(){
       else if(r.status === "active"){
         session.expiresAt = r.expiresAt;
         saveSession(session);
-        if(!screens.live.classList.contains("on")) enterLive();
+        if(!connected){ connected = true; startRemain(); }
+        lastState = r.state;
         applyState(r.state);
+        routeView(r.state);
       }
       else if(r.status === "expired"){ stopPolling(); clearSession(); showNotice("expired"); return; }
       else if(r.status === "invalid"){
@@ -358,14 +521,10 @@ function applyState(state){
   tweenTo(byId("figure"), displayedTotal, total, v=>fmt(Math.round(v)));
   displayedTotal = total;
   byId("count").textContent = fmt(count);
-  byId("totalLabel").textContent = count > 0 ? ("合計（" + fmt(count) + "点）") : "合計";
 
-  const key = items.map(it=>`${it.name}|${it.qty}|${it.price}|${it.kind||""}`).join(";");
+  const key = items.map(it=>`${it.name}|${it.qty}|${it.price}`).join(";");
   renderItems(items, key !== lastItemsKey);
   lastItemsKey = key;
-
-  applyIdle(state.idle, count === 0 && total === 0);
-  applyAlert(state.alert);
 
   const ago = state.ts ? Math.max(0, Math.round((Date.now()-state.ts)/1000)) : 0;
   byId("updated").textContent = state.ts ? `更新 ${ago===0?"たった今":ago+"秒前"}` : "更新を待っています…";
@@ -379,9 +538,11 @@ function renderItems(items, flashLast){
     const row = document.createElement("div");
     row.className = "row" + (flashLast && idx===0 ? " flash" : "");
     const price = Number(it.price)||0, qty = Number(it.qty)||0;
-    const kind = String(it.kind||"");
-    const badge = kind==="新刊" ? '<span class="kbadge k-new">新刊</span>'
-                : kind==="既刊" ? '<span class="kbadge k-old">既刊</span>' : "";
+    const kind = it.kind!=null ? String(it.kind) : "";
+    const isNew = kind==="新刊" || kind==="new" || kind==="NEW";
+    const isOld = kind==="既刊" || kind==="old" || kind==="OLD";
+    const badge = isNew ? `<span class="kbadge k-new">新刊</span>`
+               : isOld ? `<span class="kbadge k-old">既刊</span>` : "";
     row.innerHTML =
       `<span class="name"><span class="nm">${esc(it.name||"（無題）")}</span>${badge}</span>`+
       `<span class="qty"><span class="num">${qty}</span>点 × ¥<span class="num">${fmt(price)}</span></span>`+
@@ -390,98 +551,9 @@ function renderItems(items, flashLast){
   });
   if(!list.length){
     const e=document.createElement("div"); e.className="row";
-    e.innerHTML = `<span class="name"><span class="nm" style="color:var(--faint);font-weight:500">頒布物を選ぶと、ここに表示されます</span></span><span></span><span></span>`;
+    e.innerHTML = `<span class="name" style="color:var(--faint);font-weight:500">頒布物を選ぶと、ここに表示されます</span><span></span><span></span>`;
     box.appendChild(e);
   }
-}
-
-
-/* ============================================================
-   待機スライドショー / 割り込み表示
-   - state.idle  = {on, sec, fit, ver, count}：会計が空(¥0)の間、画像を順に表示
-   - state.alert = {on, text, size, color, bg, style}：最優先で重ねて表示
-   ============================================================ */
-const IDLE_DELAY_MS = 1500;      // 会計が空になってからスライドに切り替わるまで
-let idleCfg = null, slides = [], slidesVer = null, slidesLoading = false;
-let idleShown = false, idleWaitTimer = null, slideTimer = null, slideSec = null, slideIdx = 0, slideFront = "idleA";
-let lastAlertKey = "";
-
-async function loadSlides(ver){
-  if(slidesLoading || !session) return;
-  slidesLoading = true;
-  try{
-    const r = await api(`/media/pull?sessionId=${encodeURIComponent(session.sessionId)}&token=${encodeURIComponent(session.outToken)}`);
-    if(r && r.status === "ok"){
-      slides = Array.isArray(r.slides) ? r.slides : [];
-      slidesVer = ver; // 同じverを何度も取りに行かない
-      slideIdx = 0;
-      if(idleShown){ restartSlides(); }
-    }
-  }catch{ /* 次の更新で再試行 */ }
-  slidesLoading = false;
-}
-
-function applyIdle(cfg, isEmpty){
-  idleCfg = cfg || null;
-  const want = !!(idleCfg && idleCfg.on && isEmpty);
-  if(want && idleCfg.ver && idleCfg.ver !== slidesVer) loadSlides(idleCfg.ver);
-  byId("idleLayer").classList.toggle("cover", !!(idleCfg && idleCfg.fit === "cover"));
-  if(want && slides.length){
-    if(!idleShown && !idleWaitTimer){
-      idleWaitTimer = setTimeout(()=>{ idleWaitTimer = null; showIdle(); }, IDLE_DELAY_MS);
-    }else if(idleShown && slideSec !== idleCfg.sec){
-      restartSlides(); // 秒数の変更を反映
-    }
-  }else{
-    hideIdle();
-  }
-}
-function showIdle(){
-  if(!slides.length) return;
-  idleShown = true;
-  byId("idleLayer").classList.add("on");
-  restartSlides();
-}
-function hideIdle(){
-  if(idleWaitTimer){ clearTimeout(idleWaitTimer); idleWaitTimer = null; }
-  if(slideTimer){ clearInterval(slideTimer); slideTimer = null; }
-  slideSec = null;
-  if(idleShown){ idleShown = false; byId("idleLayer").classList.remove("on"); }
-}
-function restartSlides(){
-  if(slideTimer){ clearInterval(slideTimer); slideTimer = null; }
-  if(!slides.length){ hideIdle(); return; }
-  if(slideIdx >= slides.length) slideIdx = 0;
-  setSlide(slides[slideIdx]);
-  const sec = Math.max(2, Number(idleCfg && idleCfg.sec) || 8);
-  slideSec = idleCfg && idleCfg.sec;
-  if(slides.length > 1){
-    slideTimer = setInterval(()=>{ slideIdx = (slideIdx + 1) % slides.length; setSlide(slides[slideIdx]); }, sec * 1000);
-  }
-}
-function setSlide(src){
-  const back = slideFront === "idleA" ? "idleB" : "idleA";
-  const img = byId(back);
-  const swap = ()=>{ img.onload = null; img.classList.add("show"); if(slideFront !== back) byId(slideFront).classList.remove("show"); slideFront = back; };
-  if(img.getAttribute("src") === src && img.complete){ swap(); }
-  else { img.onload = swap; img.src = src; }
-}
-
-function applyAlert(a){
-  const el = byId("alertLayer");
-  if(!a || !a.on || !String(a.text||"").trim()){
-    el.classList.remove("on","pop"); lastAlertKey = ""; return;
-  }
-  const key = [a.text,a.size,a.color,a.bg,a.style].join("|");
-  if(key === lastAlertKey) return;
-  lastAlertKey = key;
-  el.className = (a.style === "banner" ? "banner" : "full");
-  el.style.background = a.bg || "#c0392b";
-  el.style.color = a.color || "#ffffff";
-  el.style.fontSize = (Number(a.size)||12) + "vmin";
-  byId("alertText").textContent = a.text;
-  void el.offsetWidth; // アニメーションをやり直す
-  el.classList.add("on","pop");
 }
 
 /* number tween */
@@ -503,7 +575,7 @@ function esc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;"
    NOTICE SCREENS
    ============================================================ */
 function showNotice(kind, msg){
-  stopPolling(); clearInterval(remainTimer); hideIdle(); applyAlert(null); show("notice");
+  stopPolling(); clearInterval(remainTimer); clearIdle(); show("notice");
   const g=byId("nGlyph"), t=byId("nTitle"), b=byId("nBody"), btn=byId("nBtn");
   if(kind==="expired"){ g.textContent="🌙"; t.textContent="同期を終了しました"; b.textContent="9時間が経過しました。日付が変わると再接続できます。"; btn.style.display="none"; }
   else if(kind==="locked"){ g.textContent="🔒"; t.textContent="本日は認証済みです"; b.textContent = msg || "日付が変わると再認証できます。"; btn.style.display="none"; }
@@ -512,13 +584,271 @@ function showNotice(kind, msg){
 byId("nBtn").addEventListener("click", ()=>{ clearSession(); boot(); });
 
 /* ============================================================
+   OSHINAGAKI (idle image) — settings + view routing + slideshow
+   ============================================================ */
+const IDLE_MS = 4000;                 // 会計後、待機画像に戻るまでの猶予
+const MAX_OSHI_IMAGES = 30;           // 登録できる画像の上限（安全のため）
+let oshiEnabled = true, oshiImages = [], oshiIntervalMs = 6000;
+let connected = false, idleTimer = null, lastState = null;
+let slideTimer = null, slideIdx = 0, slideFront = 0;
+
+/* --- IndexedDB (画像はここに保存。localStorageの容量制限を回避) --- */
+const IDB_NAME = "salesync", IDB_STORE = "kv";
+function idbOpen(){
+  return new Promise((res, rej)=>{
+    const r = indexedDB.open(IDB_NAME, 1);
+    r.onupgradeneeded = ()=> r.result.createObjectStore(IDB_STORE);
+    r.onsuccess = ()=> res(r.result);
+    r.onerror = ()=> rej(r.error);
+  });
+}
+async function idbSet(k, v){ const db = await idbOpen(); return new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,"readwrite"); t.objectStore(IDB_STORE).put(v,k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+async function idbGet(k){ const db = await idbOpen(); return new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,"readonly"); const rq=t.objectStore(IDB_STORE).get(k); rq.onsuccess=()=>res(rq.result||null); rq.onerror=()=>rej(rq.error); }); }
+async function idbDel(k){ const db = await idbOpen(); return new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,"readwrite"); t.objectStore(IDB_STORE).delete(k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); }); }
+
+/* --- 会計中かどうか（合計>0 か 点数>0 なら会計中） --- */
+function isActive(state){
+  if(!state) return false;
+  const items = Array.isArray(state.items) ? state.items : [];
+  const total = Number.isFinite(state.total) ? state.total
+    : items.reduce((a,it)=> a + (Number(it.price)||0)*(Number(it.qty)||0), 0);
+  const count = items.reduce((a,it)=> a + (Number(it.qty)||0), 0);
+  return total > 0 || count > 0;
+}
+function clearIdle(){ if(idleTimer){ clearTimeout(idleTimer); idleTimer=null; } }
+
+/* --- 接続中の表示切り替え：会計中=計算画面／待機中=おしながき --- */
+function routeView(state){
+  if(!connected) return;
+  if(screens.notice.classList.contains("on")) return;
+  if(isActive(state)){
+    clearIdle();
+    show("live");
+    return;
+  }
+  // 待機（idle）
+  if(oshiEnabled && oshiImages.length){
+    if(screens.live.classList.contains("on")){
+      // 直前まで計算画面 → 少し待ってから戻す（会計間の点滅防止）
+      if(!idleTimer){
+        idleTimer = setTimeout(()=>{ idleTimer=null; if(connected && !isActive(lastState)) show("oshi"); }, IDLE_MS);
+      }
+    }else{
+      show("oshi"); // 初回接続などは即おしながき
+    }
+  }else{
+    show("live"); // 画像が無い/オフなら従来どおり計算画面(¥0)
+  }
+}
+
+/* --- スライドショー（画像1枚ならそのまま表示、2枚以上なら自動で切り替え） --- */
+function renderSlide(i){
+  const layers = [byId("oshiImgA"), byId("oshiImgB")];
+  const back = layers[1 - slideFront];
+  back.src = oshiImages[i] || "";
+  layers[slideFront].classList.remove("show");
+  back.classList.add("show");
+  slideFront = 1 - slideFront;
+}
+function startSlideshow(){
+  stopSlideshow();
+  if(!oshiImages.length) return;
+  slideIdx = 0;
+  renderSlide(slideIdx);
+  if(oshiImages.length > 1){
+    slideTimer = setInterval(()=>{
+      slideIdx = (slideIdx + 1) % oshiImages.length;
+      renderSlide(slideIdx);
+    }, oshiIntervalMs);
+  }
+}
+function stopSlideshow(){ if(slideTimer){ clearInterval(slideTimer); slideTimer=null; } }
+
+/* --- 画像を選択 → 縮小 → 保存（複数可） --- */
+function downscaleImage(file, maxDim){
+  return new Promise((res, rej)=>{
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = ()=>{
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const scale = Math.min(1, maxDim / Math.max(w, h));
+      w = Math.round(w*scale); h = Math.round(h*scale);
+      const c = document.createElement("canvas"); c.width=w; c.height=h;
+      c.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      let out = c.toDataURL("image/png");
+      if(out.length > 3_500_000) out = c.toDataURL("image/jpeg", 0.9);
+      res(out);
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error("load failed")); };
+    img.src = url;
+  });
+}
+async function saveOshiImages(){ try{ await idbSet("oshi.images", oshiImages); }catch{} }
+async function onImagesPicked(files){
+  const room = MAX_OSHI_IMAGES - oshiImages.length;
+  if(room <= 0){ alert(`画像は最大${MAX_OSHI_IMAGES}枚までです`); return; }
+  const list = files.slice(0, room);
+  for(const f of list){
+    try{ oshiImages.push(await downscaleImage(f, 2400)); }catch{}
+  }
+  if(files.length > room) alert(`最大${MAX_OSHI_IMAGES}枚までのため、一部の画像は追加されませんでした`);
+  await saveOshiImages();
+  renderThumbs();
+  routeView(lastState);
+}
+async function removeOshiImage(i){
+  oshiImages.splice(i, 1);
+  await saveOshiImages();
+  renderThumbs();
+  routeView(lastState);
+}
+
+/* --- 設定UI --- */
+function renderThumbs(){
+  const box = byId("oshiThumbs");
+  if(!oshiImages.length){ box.innerHTML = `<div class="thumb-empty">画像が未設定です</div>`; return; }
+  box.innerHTML = oshiImages.map((src, i)=>
+    `<div class="thumb-item"><img src="${src}" alt=""><button class="rm" type="button" data-i="${i}">×</button></div>`
+  ).join("");
+}
+function refreshIntervalUI(){
+  byId("intervalBtns").querySelectorAll("[data-sec]").forEach(b=>{
+    b.classList.toggle("primary", Number(b.dataset.sec)*1000 === oshiIntervalMs);
+  });
+}
+function refreshSettingsUI(){
+  renderThumbs();
+  refreshIntervalUI();
+  byId("oshiToggle").checked = oshiEnabled;
+}
+async function initSettings(){
+  oshiEnabled = localStorage.getItem("salesync.oshiEnabled") !== "0"; // 既定ON
+  oshiIntervalMs = Number(localStorage.getItem("salesync.oshiInterval") || "6000") || 6000;
+  try{
+    let arr = await idbGet("oshi.images");
+    if(!arr){
+      // 旧バージョン（1枚のみ）からの引き継ぎ
+      const legacy = await idbGet("oshi.image");
+      if(legacy){ arr = [legacy]; await idbSet("oshi.images", arr); await idbDel("oshi.image"); }
+    }
+    oshiImages = Array.isArray(arr) ? arr : [];
+  }catch{ oshiImages = []; }
+  refreshSettingsUI();
+}
+byId("gear").addEventListener("click", ()=>{ refreshSettingsUI(); byId("settings").classList.add("on"); });
+byId("closeSettings").addEventListener("click", ()=> byId("settings").classList.remove("on"));
+byId("settings").addEventListener("click", e=>{ if(e.target.id==="settings") byId("settings").classList.remove("on"); });
+byId("pickImg").addEventListener("click", ()=> byId("fileInput").click());
+byId("fileInput").addEventListener("change", async e=>{
+  const files = Array.from(e.target.files || []);
+  if(files.length){ await onImagesPicked(files); }
+  e.target.value = "";
+});
+byId("oshiThumbs").addEventListener("click", e=>{
+  const btn = e.target.closest(".rm");
+  if(btn) removeOshiImage(Number(btn.dataset.i));
+});
+byId("intervalBtns").addEventListener("click", e=>{
+  const btn = e.target.closest("[data-sec]");
+  if(!btn) return;
+  oshiIntervalMs = Number(btn.dataset.sec) * 1000;
+  try{ localStorage.setItem("salesync.oshiInterval", String(oshiIntervalMs)); }catch{}
+  refreshIntervalUI();
+  if(screens.oshi.classList.contains("on")) startSlideshow(); // 表示中なら新しい間隔で再スタート
+});
+byId("oshiToggle").addEventListener("change", e=>{
+  oshiEnabled = e.target.checked;
+  try{ localStorage.setItem("salesync.oshiEnabled", oshiEnabled ? "1" : "0"); }catch{}
+  routeView(lastState);
+});
+
+/* ============================================================
+   FULLSCREEN（全画面表示）＋ ホーム画面アプリ化
+   ============================================================ */
+(function(){
+  const btn = byId("fsBtn"), icon = byId("fsIcon"), label = byId("fsLabel");
+  const root = document.documentElement;
+
+  /* --- ホーム画面アプリとして起動中か（アドレスバーなし） --- */
+  const isAppMode = ()=> (window.matchMedia && (
+      matchMedia("(display-mode: fullscreen)").matches ||
+      matchMedia("(display-mode: standalone)").matches)) || navigator.standalone === true;
+  if(isAppMode()){
+    document.body.classList.add("app-mode");   // 全画面ボタンは不要なので隠す
+    byId("installField").style.display = "none";
+  }
+
+  /* --- ブラウザ内の全画面 --- */
+  const canFS = !!(root.requestFullscreen || root.webkitRequestFullscreen);
+  const inFS = ()=> !!(document.fullscreenElement || document.webkitFullscreenElement);
+  const ENTER = "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5";
+  const EXIT  = "M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5";
+  function update(){
+    const on = inFS();
+    icon.querySelector("path").setAttribute("d", on ? EXIT : ENTER);
+    label.textContent = on ? "全画面を終了" : "全画面";
+    btn.classList.toggle("is-fs", on);
+  }
+  async function enter(){
+    try{ await (root.requestFullscreen ? root.requestFullscreen() : root.webkitRequestFullscreen()); }catch{}
+    try{ if(screen.orientation && screen.orientation.lock) await screen.orientation.lock("landscape"); }catch{}
+  }
+  async function exit(){
+    try{ if(screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); }catch{}
+    try{ await (document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen()); }catch{}
+  }
+  if(!canFS){
+    btn.style.display = "none";   // 非対応端末（iPhoneのSafari等）はホーム画面追加で全画面にする
+  }else{
+    btn.addEventListener("click", ()=>{ inFS() ? exit() : enter(); });
+    document.addEventListener("fullscreenchange", update);
+    document.addEventListener("webkitfullscreenchange", update);
+    update();
+  }
+
+  /* --- 「ホーム画面に追加」ボタン（Android Chrome等：ワンタップでインストール） --- */
+  let deferred = null;
+  const ib = byId("installBtn");
+  window.addEventListener("beforeinstallprompt", e=>{
+    e.preventDefault();
+    deferred = e;
+    ib.style.display = "";
+    byId("installHint").style.display = "none";
+  });
+  ib.addEventListener("click", async ()=>{
+    if(!deferred) return;
+    deferred.prompt();
+    try{ await deferred.userChoice; }catch{}
+    deferred = null;
+    ib.style.display = "none";
+    byId("installHint").style.display = "";
+  });
+  window.addEventListener("appinstalled", ()=>{ ib.style.display = "none"; });
+})();
+
+/* --- 操作ボタン（⛶ / ⚙）は数秒触らないと自動で消える。画面をタップすると再表示 --- */
+(function(){
+  let t = null;
+  function wake(){
+    document.body.classList.remove("ui-idle");
+    clearTimeout(t);
+    t = setTimeout(()=>{
+      if(!byId("settings").classList.contains("on")) document.body.classList.add("ui-idle");
+    }, 6000);
+  }
+  ["pointerdown","touchstart","mousemove","keydown"].forEach(ev=> window.addEventListener(ev, wake, {passive:true}));
+  wake();
+})();
+
+/* ============================================================
    BOOT
    ============================================================ */
 function boot(){
   if(DEMO){ return startPairing(); }
   const s = loadSession();
   if(s && s.expiresAt && Date.now() < s.expiresAt){
-    session = s; enterLive(); startRemain(); startPolling();
+    session = s; connected = true; startRemain(); startPolling(); routeView(null);
   }else if(s && s.expiresAt){
     clearSession(); showNotice("expired");
   }else{
@@ -534,31 +864,39 @@ function demoPairing(){
   renderQR(pin); renderPin(pin);
   setTimeout(()=>{
     session = { expiresAt: Date.now() + 9*3600*1000 };
-    enterLive(); startRemain(); demoLoop();
+    connected = true; startRemain(); demoLoop();
   }, 2600);
 }
 function demoLoop(){
   const catalog = [
     {name:"新刊「はるのいろ」", price:800, kind:"新刊"},
     {name:"既刊セット", price:1500, kind:"既刊"},
-    {name:"アクリルキーホルダー", price:600, kind:""},
-    {name:"ポストカード", price:200, kind:""},
-    {name:"ステッカー", price:300, kind:""},
+    {name:"アクリルキーホルダー", price:600, kind:"既刊"},
+    {name:"ポストカード", price:200, kind:"新刊"},
+    {name:"ステッカー", price:300, kind:"既刊"},
   ];
-  const items = catalog.map(c=>({...c, qty:0}));
-  const bump = ()=>{
-    const it = items[Math.floor(Math.random()*items.length)];
-    it.qty += 1;
-    applyState({ title:"二次創作サークル はるつむぎ", items, ts:Date.now() });
-    setTimeout(bump, 1100 + Math.random()*1400);
+  const title = "二次創作サークル はるつむぎ";
+  const push = (items)=>{ lastState = { title, items, ts:Date.now() }; applyState(lastState); routeView(lastState); };
+  const transaction = ()=>{
+    push([]);                                   // 待機（画像があればおしながき表示）
+    const items = catalog.map(c=>({...c, qty:0}));
+    const n = 2 + Math.floor(Math.random()*4);
+    let i = 0;
+    const add = ()=>{
+      items[Math.floor(Math.random()*items.length)].qty += 1;
+      push(items.map(x=>({...x})));             // 会計中（計算画面）
+      if(++i < n){ setTimeout(add, 900 + Math.random()*900); }
+      else { setTimeout(()=>{ push([]); setTimeout(transaction, IDLE_MS + 3000); }, 2500); } // 会計完了→待機へ
+    };
+    setTimeout(add, 1400);
   };
-  applyState({ title:"二次創作サークル はるつむぎ", items, ts:Date.now() });
-  setTimeout(bump, 900);
+  transaction();
 }
 
 /* start */
-if(document.readyState==="complete" || document.readyState==="interactive") boot();
-else window.addEventListener("DOMContentLoaded", boot);
+function start(){ initSettings().finally(boot); }
+if(document.readyState==="complete" || document.readyState==="interactive") start();
+else window.addEventListener("DOMContentLoaded", start);
 </script>
 </body>
 </html>
