@@ -248,6 +248,20 @@
   .switch input:checked ~ .track{background:var(--gold)}
   .switch input:checked ~ .thumb{left:25px}
 
+  /* ---------- お知らせ表示（売上計算ツールからの割り込み） ---------- */
+  #noticeLayer{
+    position:fixed; inset:0; z-index:30; display:flex; align-items:center; justify-content:center;
+    padding:4vh 5vw; background:#201830; color:#fff;
+    opacity:0; visibility:hidden; transition:opacity .45s ease, visibility .45s;
+  }
+  #noticeLayer.on{opacity:1; visibility:visible}
+  #noticeText{
+    white-space:pre-wrap; word-break:break-word; text-align:center; font-weight:900; line-height:1.3; max-width:100%;
+  }
+  .remote-note{color:var(--gold); font-size:12.5px; line-height:1.6; margin:6px 0 0; display:none}
+  .remote-note.on{display:block}
+  .mini:disabled, .switch input:disabled{opacity:.45; cursor:not-allowed}
+
   @media (prefers-reduced-motion: reduce){
     .live .pulse{animation:none}
     *{transition:none !important}
@@ -329,6 +343,9 @@
 
 </div>
 
+<!-- お知らせ表示（割り込み） -->
+<div id="noticeLayer" aria-live="polite"><div id="noticeText"></div></div>
+
 <button class="fsbtn" id="fsBtn" type="button" aria-label="全画面表示">
   <svg id="fsIcon" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
   <span id="fsLabel">全画面</span>
@@ -366,6 +383,7 @@
         <label class="switch"><input type="checkbox" id="oshiToggle" /><span class="track"></span><span class="thumb"></span></label>
       </div>
       <p class="sub" style="margin:0">オンにすると、会計していない間は画像を表示し、金額が入ると自動で計算画面に切り替わります。</p>
+      <p class="remote-note" id="remoteNote">※ 売上計算ツールから設定中のため、ON/OFFと表示時間は売上計算ツールの「ユーティリティ」で変更してください（画像の登録はここで行えます）。</p>
     </div>
 
     <div class="field" id="installField">
@@ -474,6 +492,7 @@ function startPolling(){
         saveSession(session);
         if(!connected){ connected = true; startRemain(); }
         lastState = r.state;
+        applyRemote(r.state);
         applyState(r.state);
         routeView(r.state);
       }
@@ -575,7 +594,7 @@ function esc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;"
    NOTICE SCREENS
    ============================================================ */
 function showNotice(kind, msg){
-  stopPolling(); clearInterval(remainTimer); clearIdle(); show("notice");
+  stopPolling(); clearInterval(remainTimer); clearIdle(); hideNoticeLayer(); show("notice");
   const g=byId("nGlyph"), t=byId("nTitle"), b=byId("nBody"), btn=byId("nBtn");
   if(kind==="expired"){ g.textContent="🌙"; t.textContent="同期を終了しました"; b.textContent="9時間が経過しました。日付が変わると再接続できます。"; btn.style.display="none"; }
   else if(kind==="locked"){ g.textContent="🔒"; t.textContent="本日は認証済みです"; b.textContent = msg || "日付が変わると再認証できます。"; btn.style.display="none"; }
@@ -721,6 +740,9 @@ function refreshSettingsUI(){
   renderThumbs();
   refreshIntervalUI();
   byId("oshiToggle").checked = oshiEnabled;
+  byId("oshiToggle").disabled = remoteSlide;
+  byId("intervalBtns").querySelectorAll("button").forEach(b=>{ b.disabled = remoteSlide; });
+  byId("remoteNote").classList.toggle("on", remoteSlide);
 }
 async function initSettings(){
   oshiEnabled = localStorage.getItem("salesync.oshiEnabled") !== "0"; // 既定ON
@@ -762,6 +784,69 @@ byId("oshiToggle").addEventListener("change", e=>{
   try{ localStorage.setItem("salesync.oshiEnabled", oshiEnabled ? "1" : "0"); }catch{}
   routeView(lastState);
 });
+
+/* ============================================================
+   売上計算ツールからの遠隔設定
+   - state.slide  = { on, sec }                 … 待機スライドショーのON/OFF・秒数
+   - state.notice = { on, text, color, bg, size } … お知らせ（割り込み）表示
+   どちらも届かない（古い売上計算ツール）場合は、この端末の設定のまま動きます。
+   ============================================================ */
+let remoteSlide = false, noticeKey = "", noticeCur = null;
+function applyRemote(state){
+  if(!state) return;
+  // --- 待機スライドショー ---
+  const sl = state.slide;
+  if(sl && typeof sl.on === "boolean"){
+    const sec = Math.max(2, Math.min(120, Math.round(Number(sl.sec)) || 6));
+    const ms = sec * 1000;
+    const changed = !remoteSlide || oshiEnabled !== sl.on || oshiIntervalMs !== ms;
+    remoteSlide = true;
+    if(changed){
+      const intervalChanged = oshiIntervalMs !== ms;
+      oshiEnabled = sl.on; oshiIntervalMs = ms;
+      if(byId("settings").classList.contains("on")) refreshSettingsUI();
+      if(intervalChanged && screens.oshi.classList.contains("on")) startSlideshow();
+    }
+  }
+  // --- お知らせ表示 ---
+  const n = state.notice;
+  if(n && n.on && String(n.text||"").trim()){
+    const d = {
+      text: String(n.text).slice(0, 300),
+      color: safeColor(n.color, "#ffffff"),
+      bg: safeColor(n.bg, "#201830"),
+      size: Math.max(3, Math.min(60, Number(n.size) || 18)),
+    };
+    const key = JSON.stringify(d);
+    if(key !== noticeKey){ noticeKey = key; noticeCur = d; showNoticeLayer(d); }
+  }else if(n && noticeKey){
+    hideNoticeLayer();
+  }
+}
+function safeColor(c, fb){ return /^#[0-9a-f]{3,8}$/i.test(String(c||"")) ? c : fb; }
+function fitNoticeText(){
+  if(!noticeCur) return;
+  const box = byId("noticeLayer"), el = byId("noticeText");
+  const h = box.clientHeight || window.innerHeight;
+  let fs = h * noticeCur.size / 100;
+  el.style.fontSize = fs + "px";
+  for(let i=0; i<40 && (box.scrollHeight > box.clientHeight + 1 || el.scrollWidth > box.clientWidth + 1); i++){
+    fs *= 0.93; el.style.fontSize = fs + "px";
+  }
+}
+function showNoticeLayer(d){
+  const box = byId("noticeLayer");
+  box.style.background = d.bg; box.style.color = d.color;
+  byId("noticeText").textContent = d.text;
+  box.classList.add("on");
+  fitNoticeText();
+}
+function hideNoticeLayer(){
+  noticeKey = ""; noticeCur = null;
+  byId("noticeLayer").classList.remove("on");
+}
+window.addEventListener("resize", fitNoticeText);
+window.addEventListener("orientationchange", ()=> setTimeout(fitNoticeText, 300));
 
 /* ============================================================
    FULLSCREEN（全画面表示）＋ ホーム画面アプリ化
