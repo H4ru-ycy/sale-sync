@@ -363,6 +363,7 @@
       <div class="row-btns">
         <button class="mini primary" id="pickImg" type="button">画像を追加</button>
       </div>
+      <p class="remote-note" id="remoteImgNote">※ 売上計算ツールから送られた画像を表示中です。追加・削除・並べ替えは売上計算ツールの「ユーティリティ」で行ってください。</p>
       <input id="fileInput" type="file" accept="image/png,image/jpeg" multiple hidden />
     </div>
 
@@ -383,7 +384,7 @@
         <label class="switch"><input type="checkbox" id="oshiToggle" /><span class="track"></span><span class="thumb"></span></label>
       </div>
       <p class="sub" style="margin:0">オンにすると、会計していない間は画像を表示し、金額が入ると自動で計算画面に切り替わります。</p>
-      <p class="remote-note" id="remoteNote">※ 売上計算ツールから設定中のため、ON/OFFと表示時間は売上計算ツールの「ユーティリティ」で変更してください（画像の登録はここで行えます）。</p>
+      <p class="remote-note" id="remoteNote">※ 売上計算ツールから設定中のため、ON/OFFと表示時間は売上計算ツールの「ユーティリティ」で変更してください。</p>
     </div>
 
     <div class="field" id="installField">
@@ -608,6 +609,7 @@ byId("nBtn").addEventListener("click", ()=>{ clearSession(); boot(); });
 const IDLE_MS = 4000;                 // 会計後、待機画像に戻るまでの猶予
 const MAX_OSHI_IMAGES = 30;           // 登録できる画像の上限（安全のため）
 let oshiEnabled = true, oshiImages = [], oshiIntervalMs = 6000;
+let localImages = [], remoteImages = [], useRemoteImages = false;   // 売上計算ツールから届いた画像があればそちらを優先
 let connected = false, idleTimer = null, lastState = null;
 let slideTimer = null, slideIdx = 0, slideFront = 0;
 
@@ -703,21 +705,26 @@ function downscaleImage(file, maxDim){
     img.src = url;
   });
 }
-async function saveOshiImages(){ try{ await idbSet("oshi.images", oshiImages); }catch{} }
+async function saveOshiImages(){ try{ await idbSet("oshi.images", localImages); }catch{} }
+function pickImages(){
+  oshiImages = useRemoteImages ? remoteImages : localImages;
+}
 async function onImagesPicked(files){
-  const room = MAX_OSHI_IMAGES - oshiImages.length;
+  const room = MAX_OSHI_IMAGES - localImages.length;
   if(room <= 0){ alert(`画像は最大${MAX_OSHI_IMAGES}枚までです`); return; }
   const list = files.slice(0, room);
   for(const f of list){
-    try{ oshiImages.push(await downscaleImage(f, 2400)); }catch{}
+    try{ localImages.push(await downscaleImage(f, 2400)); }catch{}
   }
   if(files.length > room) alert(`最大${MAX_OSHI_IMAGES}枚までのため、一部の画像は追加されませんでした`);
   await saveOshiImages();
+  pickImages();
   renderThumbs();
   routeView(lastState);
 }
 async function removeOshiImage(i){
-  oshiImages.splice(i, 1);
+  localImages.splice(i, 1);
+  pickImages();
   await saveOshiImages();
   renderThumbs();
   routeView(lastState);
@@ -726,9 +733,12 @@ async function removeOshiImage(i){
 /* --- 設定UI --- */
 function renderThumbs(){
   const box = byId("oshiThumbs");
-  if(!oshiImages.length){ box.innerHTML = `<div class="thumb-empty">画像が未設定です</div>`; return; }
-  box.innerHTML = oshiImages.map((src, i)=>
-    `<div class="thumb-item"><img src="${src}" alt=""><button class="rm" type="button" data-i="${i}">×</button></div>`
+  byId("pickImg").style.display = useRemoteImages ? "none" : "";
+  byId("remoteImgNote").classList.toggle("on", useRemoteImages);
+  const list = useRemoteImages ? remoteImages : localImages;
+  if(!list.length){ box.innerHTML = `<div class="thumb-empty">画像が未設定です</div>`; return; }
+  box.innerHTML = list.map((src, i)=>
+    `<div class="thumb-item"><img src="${src}" alt="">${useRemoteImages ? "" : `<button class="rm" type="button" data-i="${i}">×</button>`}</div>`
   ).join("");
 }
 function refreshIntervalUI(){
@@ -754,8 +764,14 @@ async function initSettings(){
       const legacy = await idbGet("oshi.image");
       if(legacy){ arr = [legacy]; await idbSet("oshi.images", arr); await idbDel("oshi.image"); }
     }
-    oshiImages = Array.isArray(arr) ? arr : [];
-  }catch{ oshiImages = []; }
+    localImages = Array.isArray(arr) ? arr : [];
+  }catch{ localImages = []; }
+  // 売上計算ツールから前回受け取った画像（版番号つき）を復元：同じ版なら再ダウンロード不要
+  try{
+    const rc = await idbGet("remote.slides");
+    if(rc && Array.isArray(rc.slides)){ remoteCache = rc; }
+  }catch{}
+  pickImages();
   refreshSettingsUI();
 }
 byId("gear").addEventListener("click", ()=>{ refreshSettingsUI(); byId("settings").classList.add("on"); });
@@ -792,6 +808,7 @@ byId("oshiToggle").addEventListener("change", e=>{
    どちらも届かない（古い売上計算ツール）場合は、この端末の設定のまま動きます。
    ============================================================ */
 let remoteSlide = false, noticeKey = "", noticeCur = null;
+let remoteCache = null, mediaLoading = false, mediaRetryAt = 0;
 function applyRemote(state){
   if(!state) return;
   // --- 待機スライドショー ---
@@ -806,6 +823,15 @@ function applyRemote(state){
       oshiEnabled = sl.on; oshiIntervalMs = ms;
       if(byId("settings").classList.contains("on")) refreshSettingsUI();
       if(intervalChanged && screens.oshi.classList.contains("on")) startSlideshow();
+    }
+    // --- 画像（売上計算ツールで登録したもの） ---
+    const ver = typeof sl.ver === "string" ? sl.ver : "";
+    const count = Number(sl.count) || 0;
+    if(ver && count > 0){
+      if(remoteCache && remoteCache.ver === ver){ setRemoteImages(remoteCache.slides); }
+      else loadRemoteMedia(ver);
+    }else if(useRemoteImages && ("ver" in sl)){
+      setRemoteImages(null);   // 売上計算ツール側の画像が0枚 → この端末の画像に戻す
     }
   }
   // --- お知らせ表示 ---
@@ -822,6 +848,31 @@ function applyRemote(state){
   }else if(n && noticeKey){
     hideNoticeLayer();
   }
+}
+function setRemoteImages(list){
+  const want = !!(list && list.length);
+  if(want === useRemoteImages && (!want || list === remoteImages)) return;
+  useRemoteImages = want;
+  remoteImages = want ? list : [];
+  pickImages();
+  if(byId("settings").classList.contains("on")) renderThumbs();
+  if(screens.oshi.classList.contains("on")) startSlideshow();
+  routeView(lastState);
+}
+async function loadRemoteMedia(ver){
+  if(mediaLoading || DEMO || !session || Date.now() < mediaRetryAt) return;
+  mediaLoading = true;
+  try{
+    const r = await api(`/media/pull?sessionId=${encodeURIComponent(session.sessionId)}&token=${encodeURIComponent(session.outToken)}`);
+    if(r && r.status === "ok" && r.ver === ver && Array.isArray(r.slides)){
+      remoteCache = { ver, slides: r.slides };
+      try{ await idbSet("remote.slides", remoteCache); }catch{}
+      setRemoteImages(r.slides);
+    }else{
+      mediaRetryAt = Date.now() + 3000;   // まだ反映前（KVの伝搬待ち）→ 少し待って再取得
+    }
+  }catch{ mediaRetryAt = Date.now() + 3000; }
+  mediaLoading = false;
 }
 function safeColor(c, fb){ return /^#[0-9a-f]{3,8}$/i.test(String(c||"")) ? c : fb; }
 function fitNoticeText(){
