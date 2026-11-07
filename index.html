@@ -431,8 +431,12 @@ function clearSession(){ try{ localStorage.removeItem("salesync.session"); }catc
 /* ---------- screens ---------- */
 const screens = { pair:byId("pair"), live:byId("live"), oshi:byId("oshi"), notice:byId("notice") };
 function show(name){
+  const wasOshi = screens.oshi.classList.contains("on");
   for(const k in screens) screens[k].classList.toggle("on", k===name);
-  if(name === "oshi") startSlideshow(); else stopSlideshow();
+  if(name === "oshi"){
+    // 同期のたび（約0.6秒ごと）に呼ばれるので、すでに表示中なら最初からやり直さない
+    if(!wasOshi || slideList !== oshiImages || slideLen !== oshiImages.length) startSlideshow();
+  }else stopSlideshow();
 }
 function byId(id){ return document.getElementById(id); }
 
@@ -611,7 +615,7 @@ const MAX_OSHI_IMAGES = 30;           // 登録できる画像の上限（安全
 let oshiEnabled = true, oshiImages = [], oshiIntervalMs = 6000;
 let localImages = [], remoteImages = [], useRemoteImages = false;   // 売上計算ツールから届いた画像があればそちらを優先
 let connected = false, idleTimer = null, lastState = null;
-let slideTimer = null, slideIdx = 0, slideFront = 0;
+let slideTimer = null, slideIdx = 0, slideFront = 0, slideList = null, slideLen = -1;
 
 /* --- IndexedDB (画像はここに保存。localStorageの容量制限を回避) --- */
 const IDB_NAME = "salesync", IDB_STORE = "kv";
@@ -673,6 +677,7 @@ function renderSlide(i){
 }
 function startSlideshow(){
   stopSlideshow();
+  slideList = oshiImages; slideLen = oshiImages.length;
   if(!oshiImages.length) return;
   slideIdx = 0;
   renderSlide(slideIdx);
